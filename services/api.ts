@@ -30,7 +30,9 @@ type BackendBriefing = {
   expected_impact: { fuel_saving_percent?: number; critical_load_protection_percent?: number };
 };
 
-export async function fetchStationData(scenario: Scenario = "normal", briefingContext?: { baseline: StationData }): Promise<StationData> {
+type BriefingRecommendation = Pick<StationData["recommendation"], "action" | "summary" | "situation" | "risk" | "tradeoff" | "source" | "reasoning" | "fuelSavingPercent" | "criticalLoadProtectionPercent">;
+
+export async function fetchStationData(scenario: Scenario = "normal"): Promise<StationData> {
   try {
     const response = await fetch(`${backendUrl}/api/simulation/run`, {
       method: "POST",
@@ -43,37 +45,39 @@ export async function fetchStationData(scenario: Scenario = "normal", briefingCo
       throw new Error(`POLAR-E backend request failed: ${response.status}`);
     }
 
-    const dashboard = mapDashboard(await response.json() as BackendDashboard);
-
-    try {
-      const briefingResponse = await fetch(`${backendUrl}/api/ai/briefing`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario, baseline: briefingContext?.baseline, scenario_state: dashboard }),
-        cache: "no-store"
-      });
-      if (briefingResponse.ok) {
-        const briefing = await briefingResponse.json() as BackendBriefing;
-        dashboard.recommendation = {
-          action: briefing.action,
-          summary: briefing.situation || briefing.summary,
-          situation: briefing.situation,
-          risk: briefing.risk,
-          tradeoff: briefing.tradeoff,
-          source: briefing.source,
-          reasoning: briefing.reasoning?.length ? briefing.reasoning : briefing.reasons,
-          fuelSavingPercent: briefing.expected_impact.fuel_saving_percent ?? dashboard.recommendation.fuelSavingPercent,
-          criticalLoadProtectionPercent: briefing.expected_impact.critical_load_protection_percent ?? dashboard.recommendation.criticalLoadProtectionPercent
-        };
-      }
-    } catch {
-      console.warn("POLAR-E AI briefing unavailable; using numerical recommendation");
-    }
-
-    return dashboard;
+    return mapDashboard(await response.json() as BackendDashboard);
   } catch {
     console.warn("POLAR-E backend unavailable; using mock station fallback");
     return getScenarioData(scenario);
+  }
+}
+
+export async function fetchAiBriefing(scenario: Scenario, baseline: StationData, scenarioState: StationData): Promise<BriefingRecommendation | null> {
+  try {
+    const response = await fetch(`${backendUrl}/api/ai/briefing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenario, baseline, scenario_state: scenarioState }),
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      throw new Error(`POLAR-E AI briefing failed: ${response.status}`);
+    }
+    const briefing = await response.json() as BackendBriefing;
+    return {
+      action: briefing.action,
+      summary: briefing.situation || briefing.summary,
+      situation: briefing.situation,
+      risk: briefing.risk,
+      tradeoff: briefing.tradeoff,
+      source: briefing.source,
+      reasoning: briefing.reasoning?.length ? briefing.reasoning : briefing.reasons,
+      fuelSavingPercent: briefing.expected_impact.fuel_saving_percent ?? 0,
+      criticalLoadProtectionPercent: briefing.expected_impact.critical_load_protection_percent ?? 100
+    };
+  } catch {
+    console.warn("POLAR-E AI briefing unavailable; using numerical recommendation");
+    return null;
   }
 }
 

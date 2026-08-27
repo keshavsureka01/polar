@@ -12,7 +12,7 @@ import { MotionGlobeView } from "@/components/MotionGlobeView";
 import { buildLiveStationData } from "@/lib/liveStation";
 import { fetchLiveWeather, runAutomation, searchLocations, sendDeviceCommand } from "@/services/liveApi";
 import { fetchLiveStationWeather, POLAR_STATIONS, PolarStation } from "@/services/polarApi";
-import { fetchStationData } from "@/services/api";
+import { fetchAiBriefing, fetchStationData } from "@/services/api";
 import {
   AlertRule,
   AutomationDecision,
@@ -124,16 +124,24 @@ export default function Dashboard() {
   useEffect(() => {
     const requestId = ++scenarioRequestId.current;
     let active = true;
-    fetchStationData(scenario, baselineStationData ? { baseline: baselineStationData } : undefined).then((nextData) => {
+    fetchStationData(scenario).then((nextData) => {
       if (active && requestId === scenarioRequestId.current) {
         setBackendStationData(nextData);
+        const baseline = baselineStationData ?? (scenario === "normal" ? nextData : null);
+        if (baseline) {
+          fetchAiBriefing(scenario, baseline, nextData).then((briefing) => {
+            if (briefing && active && requestId === scenarioRequestId.current) {
+              setBackendStationData((current) => current ? { ...current, recommendation: { ...current.recommendation, ...briefing } } : current);
+            }
+          });
+        }
       }
     });
 
     return () => {
       active = false;
     };
-  }, [scenario]);
+  }, [scenario, baselineStationData]);
 
   const stationData: StationData | null = useMemo(() => {
     if (backendStationData) {

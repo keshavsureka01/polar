@@ -5,6 +5,7 @@ interface DigitalTwinProps {
   currentScenario: Scenario;
   onSelectScenario: (scenario: Scenario) => void;
   data: StationData;
+  baselineData: StationData;
 }
 
 const scenarioLabels: Record<Scenario, string> = {
@@ -14,7 +15,7 @@ const scenarioLabels: Record<Scenario, string> = {
   generator_failure: "GEN-01 FAILURE"
 };
 
-export function DigitalTwin({ currentScenario, onSelectScenario, data }: DigitalTwinProps) {
+export function DigitalTwin({ currentScenario, onSelectScenario, data, baselineData }: DigitalTwinProps) {
   return (
     <section className="rounded-lg border border-cyan-800/45 bg-[#111827] p-5 shadow-[0_22px_60px_rgba(0,0,0,0.28)] sm:p-6">
       <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
@@ -72,6 +73,7 @@ export function DigitalTwin({ currentScenario, onSelectScenario, data }: Digital
                     {generator.status}
                   </span>
                   <div className="mt-1 text-[10px] text-slate-400">{generator.loadKw} kW load</div>
+                  <div className="text-[10px] text-slate-500">Baseline: {baselineData.generators.find((item) => item.id === generator.id)?.status ?? "N/A"}</div>
                 </div>
               </div>
             ))}
@@ -79,11 +81,14 @@ export function DigitalTwin({ currentScenario, onSelectScenario, data }: Digital
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-slate-950/45 p-4">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Microgrid Telemetry Delta</h3>
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Baseline to Scenario Delta</h3>
           <div className="space-y-2 text-xs">
-            <DeltaRow label="Fuel Endurance" value={`${data.fuel.enduranceDays} days`} tone="amber" />
-            <DeltaRow label="Battery State of Charge" value={`${data.battery.socPercent}%`} tone="cyan" />
-            <DeltaRow label="Critical Load Reliability" value="100% Protected" tone="green" />
+            <DeltaRow label="Temperature" value={`${baselineData.environment.temperatureC} C -> ${data.environment.temperatureC} C`} tone="cyan" />
+            <DeltaRow label="Total Load" value={formatDelta(baselineData.energy.totalLoadKw, data.energy.totalLoadKw, " kW")} tone="amber" />
+            <DeltaRow label="Renewable Generation" value={formatDelta(totalRenewable(baselineData), totalRenewable(data), " kW")} tone="green" />
+            <DeltaRow label="Diesel Generation" value={formatDelta(baselineData.energy.dieselGenerationKw, data.energy.dieselGenerationKw, " kW")} tone="cyan" />
+            <DeltaRow label="Battery State of Charge" value={`${baselineData.battery.socPercent}% -> ${data.battery.socPercent}%`} tone="cyan" />
+            <DeltaRow label="Fuel Endurance" value={`${baselineData.fuel.enduranceDays} -> ${data.fuel.enduranceDays} days`} tone="amber" />
           </div>
         </div>
 
@@ -91,19 +96,43 @@ export function DigitalTwin({ currentScenario, onSelectScenario, data }: Digital
           <div>
             <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-cyan-300">
               <Cpu className="h-4 w-4" aria-hidden="true" />
-              AI Contingency Response
+              AI Operational Brief
             </h3>
             <p className="rounded border border-slate-800 bg-[#0a0e17] p-3 text-xs leading-relaxed text-slate-300">
-              {data.recommendation.action}: {data.recommendation.reasoning[0]}
+              <span className="mb-2 block text-[10px] uppercase tracking-[0.12em] text-slate-500">Scenario: {scenarioLabels[currentScenario]}</span>
+              <strong className="block">Situation</strong>
+              <span className="block">{data.recommendation.situation ?? data.recommendation.summary ?? data.recommendation.reasoning[0]}</span>
+              <strong className="mt-2 block">System Action</strong>
+              <span className="block">{data.recommendation.action}</span>
+              <strong className="mt-2 block">Why</strong>
+              <span className="block">{data.recommendation.reasoning[0]}</span>
+              <strong className="mt-2 block">Risk / Tradeoff</strong>
+              <span className="block">{data.recommendation.risk ?? data.recommendation.tradeoff ?? "Critical-load protection remains the priority."}</span>
+              <span className="mt-3 block text-[10px] uppercase tracking-[0.12em] text-cyan-400">Source: {data.recommendation.source === "groq" ? "Groq explanation" : "Deterministic fallback"}</span>
             </p>
           </div>
           <div className="mt-4 border-t border-slate-800 pt-3 text-[10px] text-slate-500">
+            <div className="mb-1">Operational chain: environment -&gt; demand/renewables -&gt; dispatch -&gt; system state</div>
             Active scenario mode: <span className="font-bold uppercase text-cyan-300">{scenarioLabels[currentScenario]}</span>
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+function totalRenewable(data: StationData) {
+  return data.energy.solarGenerationKw + data.energy.windGenerationKw;
+}
+
+function formatDelta(baseline: number, current: number, unit: string) {
+  const change = current - baseline;
+  if (Math.abs(change) < 0.01) {
+    return "No significant change";
+  }
+  const sign = change > 0 ? "+" : "";
+  const percent = baseline === 0 ? "" : ` (${sign}${((change / baseline) * 100).toFixed(1)}%)`;
+  return `${baseline}${unit} -> ${current}${unit} (${sign}${change.toFixed(1)}${unit}${percent})`;
 }
 
 function ScenarioButton({

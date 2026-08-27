@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DigitalTwin } from "@/components/DigitalTwin";
 import { EnergyMixLoadSection } from "@/components/EnergyMixLoadSection";
 import { EnvironmentAlerts } from "@/components/EnvironmentAlerts";
@@ -12,6 +12,7 @@ import { MotionGlobeView } from "@/components/MotionGlobeView";
 import { buildLiveStationData } from "@/lib/liveStation";
 import { fetchLiveWeather, runAutomation, searchLocations, sendDeviceCommand } from "@/services/liveApi";
 import { fetchLiveStationWeather, POLAR_STATIONS, PolarStation } from "@/services/polarApi";
+import { fetchStationData } from "@/services/api";
 import {
   AlertRule,
   AutomationDecision,
@@ -38,6 +39,9 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [deviceMessage, setDeviceMessage] = useState("");
+  const [backendStationData, setBackendStationData] = useState<StationData | null>(null);
+  const [baselineStationData, setBaselineStationData] = useState<StationData | null>(null);
+  const scenarioRequestId = useRef(0);
 
   useEffect(() => {
     const savedRules = window.localStorage.getItem("polar-e-alert-rules");
@@ -104,13 +108,44 @@ export default function Dashboard() {
     };
   }, [weather, alertRules, deviceConfig]);
 
+  useEffect(() => {
+    let active = true;
+    fetchStationData("normal").then((nextData) => {
+      if (active) {
+        setBaselineStationData(nextData);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const requestId = ++scenarioRequestId.current;
+    let active = true;
+    fetchStationData(scenario, baselineStationData ? { baseline: baselineStationData } : undefined).then((nextData) => {
+      if (active && requestId === scenarioRequestId.current) {
+        setBackendStationData(nextData);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [scenario]);
+
   const stationData: StationData | null = useMemo(() => {
+    if (backendStationData) {
+      return backendStationData;
+    }
+
     if (!weather || !decision) {
       return null;
     }
 
     return buildLiveStationData(weather, decision, deviceConfig);
-  }, [weather, decision, deviceConfig]);
+  }, [backendStationData, weather, decision, deviceConfig]);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -253,7 +288,7 @@ export default function Dashboard() {
         <EnvironmentAlerts data={stationData} />
         <ForecastDispatchChart data={stationData} />
         <EnergyMixLoadSection data={stationData} />
-        <DigitalTwin currentScenario={scenario} onSelectScenario={setScenario} data={stationData} />
+        <DigitalTwin currentScenario={scenario} onSelectScenario={setScenario} data={stationData} baselineData={baselineStationData ?? stationData} />
       </div>
     </main>
   );

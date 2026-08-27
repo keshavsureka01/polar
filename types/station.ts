@@ -68,6 +68,11 @@ export interface StationData {
   };
   recommendation: {
     action: string;
+    summary?: string;
+    situation?: string;
+    risk?: string;
+    tradeoff?: string;
+    source?: "groq" | "deterministic";
     reasoning: string[];
     fuelSavingPercent: number;
     criticalLoadProtectionPercent: number;

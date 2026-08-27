@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  background: #f7fbff;
-  color: #101828;
+  color-scheme: dark;
+  background: #070b12;
+  color: #e2e8f0;
 }
 
 * {
@@ -19,15 +19,20 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  background:
-    linear-gradient(135deg, rgba(185, 230, 254, 0.55), rgba(255, 255, 255, 0.8) 34%),
-    linear-gradient(180deg, #f7fbff 0%, #edf6f8 100%);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #070b12;
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
 }
 
 button,
 input {
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .recharts-wrapper {

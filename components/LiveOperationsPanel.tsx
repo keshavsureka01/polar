@@ -218,8 +218,14 @@ function LocationPanel({
         <LiveMetric icon={<SunMedium className="h-4 w-4" />} label="Solar" value={weather ? `${Math.round(weather.current.shortwaveRadiationWm2)} W/m2` : "--"} />
       </div>
 
-      <div className="mt-3 font-mono text-[11px] text-slate-500">
-        Active location: <span className="text-cyan-300">{selectedLocation.name}</span>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-slate-500">
+        <span>
+          Active location: <span className="text-cyan-300">{selectedLocation.name}</span>
+          {` (${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)})`}
+        </span>
+        <span>
+          {weather ? `${weather.source} ${weather.model} model · refreshed ${new Date(weather.fetchedAt).toLocaleTimeString()}` : "Waiting for live model data"}
+        </span>
       </div>
     </div>
   );
@@ -484,8 +490,8 @@ function DevicePanel({
             className="h-10 rounded border border-slate-800 bg-slate-950 px-3 text-slate-200 outline-none focus:border-cyan-800"
           >
             <option value="demo">Demo gateway</option>
-            <option value="modbus">Modbus gateway</option>
-            <option value="mqtt">MQTT bridge</option>
+            <option value="modbus">Modbus HTTP gateway</option>
+            <option value="mqtt">MQTT HTTP bridge</option>
             <option value="rest">REST inverter API</option>
           </select>
         </label>

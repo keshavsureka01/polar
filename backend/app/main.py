@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import json
 import os
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,8 +23,8 @@ app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True
 class ScenarioRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
     scenario: str = Field(default="normal")
-    baseline: dict[str, Any] | None = None
-    scenario_state: dict[str, Any] | None = None
+    baseline: Optional[dict[str, Any]] = None
+    scenario_state: Optional[dict[str, Any]] = None
 
 class Briefing(BaseModel):
     source: str
@@ -132,7 +132,7 @@ def briefing(request: ScenarioRequest) -> dict[str, Any]:
         from groq import Groq
         client = Groq(api_key=api_key)
         context = compact_ai_context(state, request)
-        response = client.chat.completions.create(model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"), messages=[{"role": "system", "content": "You are POLAR-E's operator explanation layer. The numerical engine already calculated the response. Treat supplied values as authoritative. Do not invent, recalculate, or override them. Return only valid JSON with source groq, headline, situation, action, reasoning, risk, tradeoff, and summary. Keep every text field concise. Do not return expected_impact; Python supplies authoritative numeric impact."}, {"role": "user", "content": str(context)}], max_tokens=500, temperature=0.1, reasoning_effort="low")
+        response = client.chat.completions.create(model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), messages=[{"role": "system", "content": "You are POLAR-E's operator explanation layer. The numerical engine already calculated the response. Treat supplied values as authoritative. Do not invent, recalculate, or override them. Return only valid JSON with source groq, headline, situation, action, reasoning, risk, tradeoff, and summary. Keep every text field concise. Do not return expected_impact; Python supplies authoritative numeric impact."}, {"role": "user", "content": str(context)}], max_tokens=500, temperature=0.1, reasoning_effort="low", response_format={"type": "json_object"})
         generated = json.loads(response.choices[0].message.content)
         reasoning = generated.get("reasoning") or generated.get("reasons") or [generated.get("situation", ""), generated.get("action", ""), generated.get("tradeoff", "")]
         if isinstance(reasoning, str):

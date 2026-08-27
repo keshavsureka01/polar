@@ -7,6 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "backtest": "python3 -m unittest discover backend/tests -v",
+    "test": "npm run typecheck && npm run backtest",
     "simulate": "python3 scripts/polar_dispatch.py"
   },
   "dependencies": {

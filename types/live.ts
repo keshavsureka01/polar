@@ -25,6 +25,9 @@ export interface WeatherHour {
 export interface LiveWeather {
   location: LocationResult;
   fetchedAt: string;
+  source: "Open-Meteo";
+  model: "Best Match";
+  dataKind: "forecast-model";
   current: WeatherHour & {
     windDirectionDeg: number;
     isDay: boolean;

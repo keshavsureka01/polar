@@ -38,3 +38,58 @@ button {
 .recharts-wrapper {
   outline: none;
 }
+
+.bg-polar-grid {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+  transform: translate3d(var(--grid-x, 0), var(--grid-y, 0), 0);
+  opacity: 0.75;
+}
+
+.bg-polar-sheen {
+  background:
+    radial-gradient(circle at 50% 15%, rgba(34, 211, 238, 0.08), transparent 28%),
+    radial-gradient(circle at 80% 18%, rgba(16, 185, 129, 0.05), transparent 22%),
+    radial-gradient(circle at 18% 78%, rgba(245, 158, 11, 0.04), transparent 24%);
+  filter: blur(0.5px);
+  opacity: 0.9;
+}
+
+.panel-rise {
+  transform: translateY(0);
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+}
+
+.panel-rise:hover {
+  transform: translateY(-2px);
+  border-color: rgba(34, 211, 238, 0.28);
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.48);
+}
+
+@keyframes polar-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes polar-shimmer {
+  0% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.34;
+  }
+  100% {
+    opacity: 0.18;
+  }
+}

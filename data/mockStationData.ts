@@ -31,14 +31,14 @@ export const baseStationData: StationData = {
     nonCriticalLoadKw: 58,
     solarGenerationKw: 91,
     windGenerationKw: 54,
-    dieselGenerationKw: 39
+    dieselGenerationKw: 51
   },
   generators: [
-    { id: "GEN-01", name: "Primary Diesel Gen", status: "ON", loadKw: 39 },
+    { id: "GEN-01", name: "Primary Diesel Gen", status: "ON", loadKw: 51 },
     { id: "GEN-02", name: "Secondary Backup Gen", status: "OFF", loadKw: 0 }
   ],
   forecast: [
-    { timeOffset: "Now", demandKw: 184, renewableKw: 145, generatorKw: 39, batterySoc: 78 },
+    { timeOffset: "Now", demandKw: 184, renewableKw: 145, generatorKw: 51, batterySoc: 78 },
     { timeOffset: "+6h", demandKw: 210, renewableKw: 110, generatorKw: 100, batterySoc: 72 },
     { timeOffset: "+12h", demandKw: 235, renewableKw: 60, generatorKw: 145, batterySoc: 64 },
     { timeOffset: "+18h", demandKw: 220, renewableKw: 40, generatorKw: 150, batterySoc: 55 },
@@ -89,10 +89,13 @@ export function getScenarioData(scenario: Scenario): StationData {
       data.fuel.enduranceDays = 14.2;
       data.fuel.burnRateLph = 8.1;
       data.battery.socPercent = 68;
+      data.battery.isCharging = false;
+      data.battery.chargeDischargeKw = 0;
       data.energy.totalLoadKw = 230;
       data.energy.criticalLoadKw = 130;
       data.energy.nonCriticalLoadKw = 100;
       data.energy.dieselGenerationKw = 85;
+      data.generators[0].loadKw = 39;
       data.generators[1].status = "ON";
       data.generators[1].loadKw = 46;
       data.recommendation.action = "PARALLEL DUAL-GENERATOR OPERATION MANDATORY";
@@ -113,12 +116,12 @@ export function getScenarioData(scenario: Scenario): StationData {
       data.environment.weatherStatus = "Blade Icing Condition";
       data.energy.windGenerationKw = 12;
       data.energy.solarGenerationKw = 45;
-      data.energy.dieselGenerationKw = 127;
+      data.energy.dieselGenerationKw = 109;
       data.battery.socPercent = 61;
       data.battery.isCharging = false;
-      data.battery.chargeDischargeKw = -18;
+      data.battery.chargeDischargeKw = 0;
       data.generators[1].status = "ON";
-      data.generators[1].loadKw = 88;
+      data.generators[1].loadKw = 58;
       data.recommendation.action = "ACTIVATE TURBINE DE-ICING HEATERS AND SHED LAB LOADS";
       data.recommendation.reasoning = [
         "Wind turbine aerodynamic stall from ice accretion on blades",
@@ -137,13 +140,13 @@ export function getScenarioData(scenario: Scenario): StationData {
       data.generators[0].status = "FAILED";
       data.generators[0].loadKw = 0;
       data.generators[1].status = "ON";
-      data.generators[1].loadKw = 93;
+      data.generators[1].loadKw = 39;
       data.fuel.enduranceDays = 16.9;
       data.battery.socPercent = 64;
       data.battery.isCharging = false;
-      data.battery.chargeDischargeKw = -24;
-      data.energy.dieselGenerationKw = 93;
-      data.recommendation.action = "GEN-01 FAULT ISOLATED: GEN-02 ASSUMED 100% LOAD";
+      data.battery.chargeDischargeKw = 0;
+      data.energy.dieselGenerationKw = 39;
+      data.recommendation.action = "GEN-01 FAULT ISOLATED: GEN-02 SUPPLYING GRID DEFICIT";
       data.recommendation.reasoning = [
         "Primary diesel generator trip detected on oil pressure differential",
         "Secondary backup generator auto-started successfully in 8.4 seconds",

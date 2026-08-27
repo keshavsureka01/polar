@@ -20,8 +20,15 @@ export function buildLiveStationData(weather: LiveWeather, decision: AutomationD
         : 0;
 
   data.station.name = weather.location.name.toUpperCase();
-  data.station.location = [weather.location.admin1, weather.location.country].filter(Boolean).join(", ") || `${weather.location.latitude}, ${weather.location.longitude}`;
+  data.station.location = [
+    weather.location.admin1,
+    weather.location.country,
+    `${weather.location.latitude.toFixed(4)}, ${weather.location.longitude.toFixed(4)}`
+  ]
+    .filter(Boolean)
+    .join(" • ");
   data.station.lastUpdated = new Date(weather.fetchedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  data.station.systemStatus = `ONLINE · LIVE ${weather.location.name.toUpperCase()}`;
   data.environment.temperatureC = Math.round(current.temperatureC);
   data.environment.windSpeedMs = current.windSpeedKmh / 3.6;
   data.environment.solarIrradianceWm2 = Math.round(irradiance);
@@ -90,6 +97,11 @@ export function buildLiveStationData(weather: LiveWeather, decision: AutomationD
       timestamp: data.station.lastUpdated
     }
   ];
+
+  data.forecast = data.forecast.map((point, index) => ({
+    ...point,
+    batterySoc: Math.max(deviceConfig.batteryReserveTargetPercent, Math.min(100, data.battery.socPercent - index * 4))
+  }));
 
   return data;
 }

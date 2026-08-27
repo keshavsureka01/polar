@@ -1,13 +1,14 @@
 # POLAR-E Backend
 
-FastAPI MVP for deterministic polar-station energy simulation. It uses `weather.csv`, `station_load.csv`, and `renewable_generation.csv` from `app/data` when present; otherwise it generates 30 days of internally consistent hourly synthetic data.
+FastAPI service for deterministic polar-station energy simulation. It uses the repository `datasets/` CSV files when present; otherwise it generates 30 days of internally consistent hourly synthetic data.
 
 ## Run
 
-```powershell
+```bash
 cd backend
-python -m pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m uvicorn app.main:app --reload --port 8000
 ```
 
 Copy `.env.example` to `.env` to configure `GROQ_API_KEY`, `GROQ_MODEL`, and `CORS_ORIGINS`. Groq only explains an already-computed numerical decision; the deterministic fallback is always available.
@@ -20,4 +21,4 @@ Copy `.env.example` to `.env` to configure `GROQ_API_KEY`, `GROQ_MODEL`, and `CO
 - `POST /api/simulation/run` with `{"scenario":"generator_failure"}`
 - `POST /api/ai/briefing` with a supported scenario
 
-Scenarios are `normal`, `extreme_cold`, `wind_icing`, and `generator_failure`. CSV timestamps must be UTC in `YYYY-MM-DD HH:MM:SS` format. Run tests with `python -m unittest discover backend/tests`.
+Scenarios are `normal`, `extreme_cold`, `wind_icing`, and `generator_failure`. CSV timestamps must be UTC in `YYYY-MM-DD HH:MM:SS` format. Run backtests from the repository root with `npm run backtest`.

@@ -30,7 +30,7 @@ DEFAULT_CONFIG = {
     "fuel_tank": {"capacity_liters": 10000, "initial_fuel_liters": 7200},
     "generators": [
         {"id": "GEN-01", "rated_power_kw": 250, "minimum_power_kw": 80, "fuel_consumption_lph": 55, "startup_time_min": 5},
-        {"id": "GEN-02", "rated_power_kw": 200, "minimum_power_kw": 60, "fuel_consumption_lph": 44, "startup_time_min": 5},
+        {"id": "GEN-02", "rated_power_kw": 200, "minimum_power_kw": 60, "fuel_consumption_lph": 50, "startup_time_min": 5},
     ],
 }
 DEFAULT_LOADS = [
@@ -202,7 +202,7 @@ def recommendation(dispatch, scenario: str) -> dict[str, Any]:
 
 
 def dashboard(scenario: str = "normal") -> dict[str, Any]:
-    weather, loads, renewable = scenario_data(scenario); dispatch = optimize(weather, loads, renewable, scenario); config = load_config(); current_weather = weather[0]; current_load = loads[0]; current_dispatch = dispatch[0]
+    weather, loads, renewable = scenario_data(scenario); dispatch = optimize(weather, loads, renewable, scenario); config = load_config(); current_weather = weather[-1]; current_load = loads[-1]; current_dispatch = dispatch[-1]
     baseline_fuel = sum(max(0, float(row["total_load_kw"]) - float(ren["total_renewable_kw"])) / config["generators"][0]["rated_power_kw"] * config["generators"][0]["fuel_consumption_lph"] for row, ren in zip(loads, renewable))
     optimized_fuel = sum(row["fuel_consumption_lph"] for row in dispatch)
     impact = {"fuel_consumption_reduction_percent": round(max(0, (baseline_fuel - optimized_fuel) / max(baseline_fuel, 1) * 100), 1), "generator_runtime_reduction_percent": 0, "renewable_utilization_improvement_percent": 0, "critical_load_reliability_percent": 100 if sum(row["unmet_critical_kw"] for row in dispatch) == 0 else 0}

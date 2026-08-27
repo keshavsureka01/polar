@@ -6,11 +6,12 @@ import { EnergyMixLoadSection } from "@/components/EnergyMixLoadSection";
 import { EnvironmentAlerts } from "@/components/EnvironmentAlerts";
 import { ForecastDispatchChart } from "@/components/ForecastDispatchChart";
 import { Header } from "@/components/Header";
+import { InteractiveBackdrop } from "@/components/InteractiveBackdrop";
 import { KPICards } from "@/components/KPICards";
 import { LiveOperationsPanel } from "@/components/LiveOperationsPanel";
 import { MotionGlobeView } from "@/components/MotionGlobeView";
 import { buildLiveStationData } from "@/lib/liveStation";
-import { fetchLiveWeather, runAutomation, searchLocations, sendDeviceCommand } from "@/services/liveApi";
+import { fetchLiveWeather, reverseGeocodeCurrentLocation, runAutomation, searchLocations, sendDeviceCommand } from "@/services/liveApi";
 import { fetchLiveStationWeather, POLAR_STATIONS, PolarStation } from "@/services/polarApi";
 import { fetchAiBriefing, fetchStationData } from "@/services/api";
 import {
@@ -30,7 +31,7 @@ export default function Dashboard() {
   const [scenario, setScenario] = useState<Scenario>("normal");
   const [selectedStation, setSelectedStation] = useState<PolarStation>(initialStation);
   const [selectedLocation, setSelectedLocation] = useState<LocationResult>(initialStation);
-  const [query, setQuery] = useState("Bengaluru");
+  const [query, setQuery] = useState(initialStation.name);
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
   const [weather, setWeather] = useState<LiveWeather | null>(null);
   const [decision, setDecision] = useState<AutomationDecision | null>(null);
@@ -42,16 +43,22 @@ export default function Dashboard() {
   const [backendStationData, setBackendStationData] = useState<StationData | null>(null);
   const [baselineStationData, setBaselineStationData] = useState<StationData | null>(null);
   const scenarioRequestId = useRef(0);
+  const weatherRequestId = useRef(0);
 
   useEffect(() => {
     const savedRules = window.localStorage.getItem("polar-e-alert-rules");
     const savedDeviceConfig = window.localStorage.getItem("polar-e-device-config");
 
-    if (savedRules) {
-      setAlertRules(JSON.parse(savedRules) as AlertRule[]);
-    }
-    if (savedDeviceConfig) {
-      setDeviceConfig(JSON.parse(savedDeviceConfig) as DeviceConfig);
+    try {
+      if (savedRules) {
+        setAlertRules(JSON.parse(savedRules) as AlertRule[]);
+      }
+      if (savedDeviceConfig) {
+        setDeviceConfig(JSON.parse(savedDeviceConfig) as DeviceConfig);
+      }
+    } catch {
+      window.localStorage.removeItem("polar-e-alert-rules");
+      window.localStorage.removeItem("polar-e-device-config");
     }
   }, []);
 
@@ -64,17 +71,24 @@ export default function Dashboard() {
   }, [deviceConfig]);
 
   const refreshWeather = useCallback(async () => {
+    const requestId = ++weatherRequestId.current;
     setBusy(true);
     setError("");
 
     try {
       const selectedPolarStation = POLAR_STATIONS.find((station) => station.id === selectedLocation.id);
       const nextWeather = selectedPolarStation ? await fetchLiveStationWeather(selectedPolarStation) : await fetchLiveWeather(selectedLocation);
-      setWeather(nextWeather);
+      if (requestId === weatherRequestId.current) {
+        setWeather(nextWeather);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to refresh live weather");
+      if (requestId === weatherRequestId.current) {
+        setError(err instanceof Error ? err.message : "Unable to refresh live weather");
+      }
     } finally {
-      setBusy(false);
+      if (requestId === weatherRequestId.current) {
+        setBusy(false);
+      }
     }
   }, [selectedLocation]);
 
@@ -144,16 +158,25 @@ export default function Dashboard() {
   }, [scenario, baselineStationData]);
 
   const stationData: StationData | null = useMemo(() => {
-    if (backendStationData) {
-      return backendStationData;
-    }
-
     if (!weather || !decision) {
-      return null;
+      return baselineStationData ?? backendStationData;
     }
 
     return buildLiveStationData(weather, decision, deviceConfig);
-  }, [backendStationData, weather, decision, deviceConfig]);
+  }, [baselineStationData, backendStationData, weather, decision, deviceConfig]);
+
+  const scenarioData = backendStationData ?? stationData;
+  const scenarioBaseline = baselineStationData ?? stationData;
+
+  const handleSelectLocation = useCallback((location: LocationResult, closeResults = true) => {
+    setSelectedLocation(location);
+    const matchingStation = POLAR_STATIONS.find((station) => station.id === location.id);
+    setSelectedStation(matchingStation ?? initialStation);
+    setQuery(location.name);
+    if (closeResults) {
+      setSearchResults([]);
+    }
+  }, []);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -167,7 +190,9 @@ export default function Dashboard() {
       const results = await searchLocations(query);
       setSearchResults(results);
       if (results[0]) {
-        setSelectedLocation(results[0]);
+        handleSelectLocation(results[0], false);
+      } else {
+        setError(`No location matched "${query.trim()}"`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Location search failed");
@@ -184,17 +209,26 @@ export default function Dashboard() {
 
     setBusy(true);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setSelectedLocation({
-          id: "browser-location",
-          name: "Current Device Location",
-          country: "Browser GPS",
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          elevation: position.coords.altitude ?? undefined,
-          timezone: "auto"
-        });
-        setBusy(false);
+      async (position) => {
+        try {
+          const location = await reverseGeocodeCurrentLocation(position.coords.latitude, position.coords.longitude);
+          handleSelectLocation({
+            ...location,
+            elevation: position.coords.altitude ?? location.elevation
+          });
+        } catch {
+          handleSelectLocation({
+            id: `gps-${position.coords.latitude.toFixed(5)},${position.coords.longitude.toFixed(5)}`,
+            name: "Current Device Location",
+            country: "GPS coordinates",
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            elevation: position.coords.altitude ?? undefined,
+            timezone: "auto"
+          });
+        } finally {
+          setBusy(false);
+        }
       },
       () => {
         setError("Location permission was denied or unavailable");
@@ -211,13 +245,10 @@ export default function Dashboard() {
     setQuery(station.name);
   }, []);
 
-  const handleSelectLocation = useCallback((location: LocationResult) => {
-    setSelectedLocation(location);
-    const matchingStation = POLAR_STATIONS.find((station) => station.id === location.id);
-    if (matchingStation) {
-      setSelectedStation(matchingStation);
-    }
-  }, []);
+  useEffect(() => {
+    setBusy(true);
+    setError("");
+  }, [selectedLocation.id]);
 
   const handleAddRule = (rule: AlertRule) => {
     setAlertRules((current) => [...current, rule]);
@@ -244,6 +275,26 @@ export default function Dashboard() {
     }
   };
 
+  const SectionTitle = ({
+    eyebrow,
+    title,
+    description
+  }: {
+    eyebrow: string;
+    title: string;
+    description: string;
+  }) => (
+    <div className="flex flex-col gap-1 border-l border-cyan-500/40 pl-4">
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-400">
+        {eyebrow}
+      </div>
+      <h2 className="text-lg font-semibold text-slate-100 sm:text-xl">{title}</h2>
+      <p className="max-w-3xl text-xs leading-5 text-slate-400 sm:text-sm">
+        {description}
+      </p>
+    </div>
+  );
+
   if (!stationData) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#070b12] px-4 font-mono text-cyan-300">
@@ -257,6 +308,7 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-[#070b12] pb-12 text-slate-100 selection:bg-cyan-400 selection:text-slate-950">
+      <InteractiveBackdrop />
       <Header
         stationName={stationData.station.name}
         location={stationData.station.location}
@@ -264,39 +316,76 @@ export default function Dashboard() {
         lastUpdated={stationData.station.lastUpdated}
       />
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 pt-6 sm:px-6">
-        <MotionGlobeView selectedStation={selectedStation} active={!busy && !error} onSelectStation={handleSelectStation} />
-
-        <section className="grid gap-6">
-          <LiveOperationsPanel
-            query={query}
-            onQueryChange={setQuery}
-            searchResults={searchResults}
-            selectedLocation={selectedLocation}
-            weather={weather}
-            decision={decision}
-            alertRules={alertRules}
-            deviceConfig={deviceConfig}
-            busy={busy}
-            deviceMessage={deviceMessage}
-            error={error}
-            onSearch={handleSearch}
-            onSelectLocation={handleSelectLocation}
-            onUseBrowserLocation={handleUseBrowserLocation}
-            onRefresh={refreshWeather}
-            onAddRule={handleAddRule}
-            onToggleRule={handleToggleRule}
-            onRemoveRule={handleRemoveRule}
-            onDeviceConfigChange={setDeviceConfig}
-            onSendCommand={handleSendCommand}
-          />
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 pt-6 sm:px-6">
+        <section className="panel-rise rounded-2xl border border-slate-800/80 bg-slate-950/40 p-4 shadow-[0_24px_80px_rgba(2,6,23,0.45)] sm:p-6">
+          <div className="mb-5">
+            <SectionTitle
+              eyebrow="Operations Deck"
+              title="Live station control and geographic selection"
+              description="Use the station selector, live weather search, alert rules, and device controls from one operational surface."
+            />
+          </div>
+          <div className="grid gap-6">
+            <MotionGlobeView selectedStation={selectedStation} active={!busy && !error} onSelectStation={handleSelectStation} />
+            <LiveOperationsPanel
+              query={query}
+              onQueryChange={setQuery}
+              searchResults={searchResults}
+              selectedLocation={selectedLocation}
+              weather={weather}
+              decision={decision}
+              alertRules={alertRules}
+              deviceConfig={deviceConfig}
+              busy={busy}
+              deviceMessage={deviceMessage}
+              error={error}
+              onSearch={handleSearch}
+              onSelectLocation={handleSelectLocation}
+              onUseBrowserLocation={handleUseBrowserLocation}
+              onRefresh={refreshWeather}
+              onAddRule={handleAddRule}
+              onToggleRule={handleToggleRule}
+              onRemoveRule={handleRemoveRule}
+              onDeviceConfigChange={setDeviceConfig}
+              onSendCommand={handleSendCommand}
+            />
+          </div>
         </section>
 
-        <KPICards data={stationData} />
-        <EnvironmentAlerts data={stationData} />
-        <ForecastDispatchChart data={stationData} />
-        <EnergyMixLoadSection data={stationData} />
-        <DigitalTwin currentScenario={scenario} onSelectScenario={setScenario} data={stationData} baselineData={baselineStationData ?? stationData} />
+        <section className="panel-rise rounded-2xl border border-slate-800/80 bg-slate-950/30 p-4 shadow-[0_24px_80px_rgba(2,6,23,0.35)] sm:p-6">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <SectionTitle
+              eyebrow="Telemetry Dashboard"
+              title="System status, climate, dispatch, and load balance"
+              description="These panels are grouped as read-only operational telemetry, so the decision and control tools stay isolated from the monitoring layer."
+            />
+          </div>
+
+          <div className="grid gap-6">
+            <KPICards data={stationData} />
+            <EnvironmentAlerts data={stationData} />
+            <ForecastDispatchChart data={stationData} />
+            <EnergyMixLoadSection data={stationData} />
+          </div>
+        </section>
+
+        <section className="panel-rise rounded-2xl border border-cyan-900/50 bg-gradient-to-b from-slate-950/40 to-slate-950/20 p-4 shadow-[0_24px_80px_rgba(8,47,73,0.2)] sm:p-6">
+          <div className="mb-5">
+            <SectionTitle
+              eyebrow="Scenario Lab"
+              title="What-if analysis and automation response"
+              description="This area is separated from routine telemetry so simulations, recommendations, and dispatch logic are easy to inspect without mixing them into the main dashboard."
+            />
+          </div>
+          {scenarioData && scenarioBaseline ? (
+            <DigitalTwin
+              currentScenario={scenario}
+              onSelectScenario={setScenario}
+              data={scenarioData}
+              baselineData={scenarioBaseline}
+            />
+          ) : null}
+        </section>
       </div>
     </main>
   );

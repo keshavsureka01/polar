@@ -2,9 +2,5 @@ fastapi
 uvicorn
 pydantic
 pandas
-numpy
 python-dotenv
 groq
-pulp
-scikit-learn
-xgboost

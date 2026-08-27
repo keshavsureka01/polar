@@ -15,8 +15,6 @@ type BackendDashboard = {
   generators: { id: string; name: string; status: "ON" | "OFF" | "FAILED"; load_kw: number }[];
 };
 
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
-
 type BackendBriefing = {
   source: "groq" | "deterministic";
   headline: string;
@@ -34,7 +32,7 @@ type BriefingRecommendation = Pick<StationData["recommendation"], "action" | "su
 
 export async function fetchStationData(scenario: Scenario = "normal"): Promise<StationData> {
   try {
-    const response = await fetch(`${backendUrl}/api/simulation/run`, {
+    const response = await fetch("/api/simulation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scenario }),
@@ -45,7 +43,18 @@ export async function fetchStationData(scenario: Scenario = "normal"): Promise<S
       throw new Error(`POLAR-E backend request failed: ${response.status}`);
     }
 
-    return mapDashboard(await response.json() as BackendDashboard);
+    const payload = await response.json() as {
+      source: "fastapi" | "typescript";
+      dashboard?: BackendDashboard;
+      stationData?: StationData;
+    };
+    if (payload.stationData) {
+      return payload.stationData;
+    }
+    if (payload.dashboard) {
+      return mapDashboard(payload.dashboard);
+    }
+    throw new Error("Simulation backend returned no station data");
   } catch {
     console.warn("POLAR-E backend unavailable; using mock station fallback");
     return getScenarioData(scenario);
@@ -54,7 +63,7 @@ export async function fetchStationData(scenario: Scenario = "normal"): Promise<S
 
 export async function fetchAiBriefing(scenario: Scenario, baseline: StationData, scenarioState: StationData): Promise<BriefingRecommendation | null> {
   try {
-    const response = await fetch(`${backendUrl}/api/ai/briefing`, {
+    const response = await fetch("/api/ai-briefing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scenario, baseline, scenario_state: scenarioState }),

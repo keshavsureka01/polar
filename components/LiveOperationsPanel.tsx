@@ -86,8 +86,8 @@ export function LiveOperationsPanel({
   onSendCommand
 }: LiveOperationsPanelProps) {
   return (
-    <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-      <div className="grid min-w-0 gap-6">
+    <section className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 content-start gap-6">
         <LocationPanel
           query={query}
           onQueryChange={onQueryChange}
@@ -103,7 +103,7 @@ export function LiveOperationsPanel({
         />
         <AlertRulesPanel rules={alertRules} onAddRule={onAddRule} onToggleRule={onToggleRule} onRemoveRule={onRemoveRule} />
       </div>
-      <div className="grid min-w-0 gap-6">
+      <div className="grid min-w-0 content-start gap-6">
         <AutomationPanel weather={weather} decision={decision} />
         <DevicePanel
           config={deviceConfig}
@@ -272,7 +272,7 @@ function AlertRulesPanel({
         </button>
       </div>
 
-      <div className="mb-4 grid min-w-0 gap-3 rounded border border-slate-800 bg-slate-950/45 p-3 font-mono text-xs md:grid-cols-[minmax(0,1fr)_150px_110px_120px_170px_auto] md:items-end">
+      <div className="mb-4 grid min-w-0 gap-3 rounded border border-slate-800 bg-slate-950/45 p-3 font-mono text-xs md:grid-cols-2 xl:grid-cols-3">
         <label className="grid gap-2">
           <span className="text-slate-400">Alert Name</span>
           <input
@@ -332,7 +332,7 @@ function AlertRulesPanel({
         <button
           type="button"
           onClick={addRule}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded border border-amber-800/70 bg-amber-950/30 px-3 font-bold text-amber-200 transition-colors hover:bg-amber-900/35"
+          className="inline-flex h-10 items-center justify-center gap-2 self-end rounded border border-amber-800/70 bg-amber-950/30 px-3 font-bold text-amber-200 transition-colors hover:bg-amber-900/35"
         >
           <BellPlus className="h-3.5 w-3.5" aria-hidden="true" />
           Create

@@ -8,9 +8,10 @@ import { ForecastDispatchChart } from "@/components/ForecastDispatchChart";
 import { Header } from "@/components/Header";
 import { KPICards } from "@/components/KPICards";
 import { LiveOperationsPanel } from "@/components/LiveOperationsPanel";
-import { TelemetryGlobe } from "@/components/TelemetryGlobe";
+import { MotionGlobeView } from "@/components/MotionGlobeView";
 import { buildLiveStationData } from "@/lib/liveStation";
 import { fetchLiveWeather, runAutomation, searchLocations, sendDeviceCommand } from "@/services/liveApi";
+import { fetchLiveStationWeather, POLAR_STATIONS, PolarStation } from "@/services/polarApi";
 import {
   AlertRule,
   AutomationDecision,
@@ -22,19 +23,12 @@ import {
 } from "@/types/live";
 import { Scenario, StationData } from "@/types/station";
 
-const initialLocation: LocationResult = {
-  id: "maitri-station",
-  name: "Maitri Station",
-  country: "Antarctica",
-  admin1: "Queen Maud Land",
-  latitude: -70.7667,
-  longitude: 11.7333,
-  timezone: "auto"
-};
+const initialStation = POLAR_STATIONS[0];
 
 export default function Dashboard() {
   const [scenario, setScenario] = useState<Scenario>("normal");
-  const [selectedLocation, setSelectedLocation] = useState<LocationResult>(initialLocation);
+  const [selectedStation, setSelectedStation] = useState<PolarStation>(initialStation);
+  const [selectedLocation, setSelectedLocation] = useState<LocationResult>(initialStation);
   const [query, setQuery] = useState("Bengaluru");
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
   const [weather, setWeather] = useState<LiveWeather | null>(null);
@@ -70,7 +64,8 @@ export default function Dashboard() {
     setError("");
 
     try {
-      const nextWeather = await fetchLiveWeather(selectedLocation);
+      const selectedPolarStation = POLAR_STATIONS.find((station) => station.id === selectedLocation.id);
+      const nextWeather = selectedPolarStation ? await fetchLiveStationWeather(selectedPolarStation) : await fetchLiveWeather(selectedLocation);
       setWeather(nextWeather);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to refresh live weather");
@@ -153,6 +148,7 @@ export default function Dashboard() {
           country: "Browser GPS",
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          elevation: position.coords.altitude ?? undefined,
           timezone: "auto"
         });
         setBusy(false);
@@ -164,6 +160,21 @@ export default function Dashboard() {
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
+
+  const handleSelectStation = useCallback((station: PolarStation) => {
+    setSelectedStation(station);
+    setSelectedLocation(station);
+    setSearchResults([]);
+    setQuery(station.name);
+  }, []);
+
+  const handleSelectLocation = useCallback((location: LocationResult) => {
+    setSelectedLocation(location);
+    const matchingStation = POLAR_STATIONS.find((station) => station.id === location.id);
+    if (matchingStation) {
+      setSelectedStation(matchingStation);
+    }
+  }, []);
 
   const handleAddRule = (rule: AlertRule) => {
     setAlertRules((current) => [...current, rule]);
@@ -211,8 +222,9 @@ export default function Dashboard() {
       />
 
       <div className="mx-auto grid max-w-7xl gap-6 px-4 pt-6 sm:px-6">
-        <section className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
-          <TelemetryGlobe location={selectedLocation} active={!busy && !error} />
+        <MotionGlobeView selectedStation={selectedStation} active={!busy && !error} onSelectStation={handleSelectStation} />
+
+        <section className="grid gap-6">
           <LiveOperationsPanel
             query={query}
             onQueryChange={setQuery}
@@ -226,7 +238,7 @@ export default function Dashboard() {
             deviceMessage={deviceMessage}
             error={error}
             onSearch={handleSearch}
-            onSelectLocation={setSelectedLocation}
+            onSelectLocation={handleSelectLocation}
             onUseBrowserLocation={handleUseBrowserLocation}
             onRefresh={refreshWeather}
             onAddRule={handleAddRule}

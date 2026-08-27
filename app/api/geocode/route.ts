@@ -9,6 +9,7 @@ interface OpenMeteoGeocodeResult {
   admin1?: string;
   latitude: number;
   longitude: number;
+  elevation?: number;
   timezone?: string;
 }
 
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
     admin1: result.admin1,
     latitude: result.latitude,
     longitude: result.longitude,
+    elevation: result.elevation,
     timezone: result.timezone
   }));
 

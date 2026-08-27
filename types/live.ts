@@ -5,6 +5,7 @@ export interface LocationResult {
   admin1?: string;
   latitude: number;
   longitude: number;
+  elevation?: number;
   timezone?: string;
 }
 

@@ -22,6 +22,9 @@ export async function fetchLiveWeather(location: LocationResult): Promise<LiveWe
   if (location.admin1) {
     params.set("admin1", location.admin1);
   }
+  if (typeof location.elevation === "number") {
+    params.set("elevation", String(location.elevation));
+  }
 
   const response = await fetch(`/api/weather?${params.toString()}`);
   if (!response.ok) {

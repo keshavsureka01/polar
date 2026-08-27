@@ -37,6 +37,7 @@ export async function GET(request: Request) {
   const name = url.searchParams.get("name") || "Selected Site";
   const country = url.searchParams.get("country") || "Custom coordinates";
   const admin1 = url.searchParams.get("admin1") || undefined;
+  const elevation = Number(url.searchParams.get("elevation"));
   const timezone = url.searchParams.get("timezone") || "auto";
 
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -90,6 +91,7 @@ export async function GET(request: Request) {
     admin1,
     latitude,
     longitude,
+    elevation: Number.isFinite(elevation) ? elevation : undefined,
     timezone
   };
   const hourly = mapHourly(payload).slice(0, 72);

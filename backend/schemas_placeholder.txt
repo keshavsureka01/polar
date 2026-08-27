@@ -1,0 +1,1 @@
+Schemas are represented by the Pydantic models in app/models and the API response models in app/main.py.

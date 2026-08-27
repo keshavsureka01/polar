@@ -1,0 +1,9 @@
+{
+  "station": {"name": "MAITRI", "location": "Antarctica"},
+  "battery": {"capacity_kwh": 1000, "initial_soc_percent": 78, "max_charge_kw": 150, "max_discharge_kw": 200, "minimum_soc_percent": 20, "emergency_reserve_percent": 30, "efficiency": 0.9},
+  "fuel_tank": {"capacity_liters": 10000, "initial_fuel_liters": 7200},
+  "generators": [
+    {"id": "GEN-01", "rated_power_kw": 250, "minimum_power_kw": 80, "fuel_consumption_lph": 55, "startup_time_min": 5},
+    {"id": "GEN-02", "rated_power_kw": 200, "minimum_power_kw": 60, "fuel_consumption_lph": 44, "startup_time_min": 5}
+  ]
+}

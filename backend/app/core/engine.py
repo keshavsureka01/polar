@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ except ImportError:  # pragma: no cover
     pd = None
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+REPOSITORY_DATA_DIR = Path(__file__).resolve().parents[3] / "datasets"
 SCENARIOS = {
     "normal": "Normal Operation",
     "extreme_cold": "Extreme Cold",
@@ -51,7 +51,7 @@ def _timestamp(value: datetime) -> str:
 
 
 def _load_csv(name: str, required: set[str]):
-    path = DATA_DIR / name
+    path = REPOSITORY_DATA_DIR / name
     if pd is None or not path.exists():
         return None
     frame = pd.read_csv(path)
@@ -63,7 +63,13 @@ def _load_csv(name: str, required: set[str]):
         raise ValueError(f"{name} contains invalid timestamps")
     numeric = [column for column in required if column != "timestamp"]
     frame[numeric] = frame[numeric].apply(pd.to_numeric, errors="coerce").interpolate().ffill().bfill()
-    return frame.sort_values("timestamp").reset_index(drop=True)
+    frame = frame.sort_values("timestamp").reset_index(drop=True)
+    frame["timestamp"] = frame["timestamp"].map(lambda value: _timestamp(value.to_pydatetime()))
+    return frame
+
+
+def _records(frame) -> list[dict[str, Any]]:
+    return [{key: value.item() if hasattr(value, "item") else value for key, value in row.items()} for row in frame.to_dict("records")]
 
 
 def synthetic_data(hours: int = 24 * 30) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -93,9 +99,9 @@ def load_data() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[s
     if weather_frame is None or load_frame is None:
         weather, loads, renewable = synthetic_data()
     else:
-        weather = weather_frame.to_dict("records")
-        loads = load_frame.to_dict("records")
-        renewable = renewable_frame.to_dict("records") if renewable_frame is not None else []
+        weather = _records(weather_frame)
+        loads = _records(load_frame)
+        renewable = _records(renewable_frame) if renewable_frame is not None else []
     if not renewable:
         renewable = [{"timestamp": row["timestamp"], "solar_generation_kw": round(float(row["solar_irradiance_wm2"]) / 1000 * 300 * 0.21 * (1 - float(row["cloud_cover_pct"]) / 160), 2), "wind_generation_kw": round(clamp(((float(row["wind_speed_ms"]) - 3) / 12) ** 3 * 220, 0, 220), 2)} for row in weather]
         for row in renewable:
@@ -124,9 +130,9 @@ def scenario_data(scenario: str) -> tuple[list[dict[str, Any]], list[dict[str, A
     if scenario not in SCENARIOS:
         raise ValueError(f"Supported scenarios: {', '.join(SCENARIOS)}")
     weather, loads, renewable = load_data()
-    weather = [dict(row) for row in weather[:48]]
-    loads = [dict(row) for row in loads[:48]]
-    renewable = [dict(row) for row in renewable[:48]]
+    weather = [dict(row) for row in weather[-48:]]
+    loads = [dict(row) for row in loads[-48:]]
+    renewable = [dict(row) for row in renewable[-48:]]
     if scenario == "extreme_cold":
         for row in weather:
             row["temperature_c"] = -45
@@ -167,14 +173,17 @@ def optimize(weather, loads, renewable, scenario: str) -> list[dict[str, Any]]:
 
 
 def fuel_state(dispatch: list[dict[str, Any]]) -> dict[str, Any]:
-    config = load_config()["fuel_tank"]; burn = sum(row["fuel_consumption_lph"] for row in dispatch) / max(1, len(dispatch)); remaining = config["initial_fuel_liters"]
+    config = load_config()["fuel_tank"]
+    burn = sum(row["fuel_consumption_lph"] for row in dispatch) / max(1, len(dispatch))
+    consumed = sum(row["fuel_consumption_lph"] for row in dispatch)
+    remaining = max(0, config["initial_fuel_liters"] - consumed)
     endurance = remaining / burn if burn else None
     return {"remaining_liters": round(remaining, 2), "endurance_hours": round(endurance, 2) if endurance else None, "endurance_days": round(endurance / 24, 2) if endurance else None, "burn_rate_lph": round(burn, 2), "exhaustion_date": _timestamp(datetime.now(timezone.utc) + timedelta(hours=endurance)) if endurance else None}
 
 
-def load_shedding(available: float, demand_row: dict[str, Any]) -> dict[str, float]:
+def load_shedding(available: float, demand_row: dict[str, Any]) -> list[dict[str, Any]]:
     critical = float(demand_row["critical_load_kw"]); flexible = float(demand_row["noncritical_load_kw"]); ratio = clamp((available - critical) / flexible, 0, 1) if flexible else 0
-    return {"life_support": 100, "medical": 100, "communication": 100, "aux_labs": round(ratio * 100, 1), "nonessential_heating": round(ratio * 100, 1)}
+    return [{"id": load["id"], "name": load["name"], "category": "CRITICAL" if load["critical"] else "NON-CRITICAL", "power_kw": load["rated_kw"], "current_percent": 100 if load["critical"] else round(ratio * 100, 1), "minimum_percent": 100 if load["critical"] else 0, "sheddable": not load["critical"]} for load in load_loads()]
 
 
 def alerts(dispatch, weather, scenario: str) -> list[dict[str, str]]:
@@ -198,4 +207,5 @@ def dashboard(scenario: str = "normal") -> dict[str, Any]:
     optimized_fuel = sum(row["fuel_consumption_lph"] for row in dispatch)
     impact = {"fuel_consumption_reduction_percent": round(max(0, (baseline_fuel - optimized_fuel) / max(baseline_fuel, 1) * 100), 1), "generator_runtime_reduction_percent": 0, "renewable_utilization_improvement_percent": 0, "critical_load_reliability_percent": 100 if sum(row["unmet_critical_kw"] for row in dispatch) == 0 else 0}
     available = current_dispatch["generator_kw"] + current_dispatch["battery_discharge_kw"] + current_dispatch["solar_kw"] + current_dispatch["wind_kw"]
-    return {"station": {**config["station"], "status": "online"}, "environment": {"temperature_c": current_weather["temperature_c"], "wind_speed_ms": current_weather["wind_speed_ms"], "solar_irradiance_wm2": current_weather["solar_irradiance_wm2"], "weather_status": "Operational"}, "fuel": fuel_state(dispatch), "battery": {"soc_percent": current_dispatch["battery_soc_percent"], "charge_discharge_kw": current_dispatch["battery_discharge_kw"] - current_dispatch["battery_charge_kw"], "emergency_reserve_percent": config["battery"]["emergency_reserve_percent"]}, "energy": {"total_load_kw": current_dispatch["demand_kw"], "critical_load_kw": current_load["critical_load_kw"], "noncritical_load_kw": current_load["noncritical_load_kw"], "solar_generation_kw": current_dispatch["solar_kw"], "wind_generation_kw": current_dispatch["wind_kw"], "diesel_generation_kw": current_dispatch["generator_kw"], "total_renewable_kw": round(current_dispatch["solar_kw"] + current_dispatch["wind_kw"], 2)}, "forecast": [{"timestamp": row["timestamp"], "predicted_demand_kw": row["demand_kw"], "predicted_solar_kw": row["solar_kw"], "predicted_wind_kw": row["wind_kw"], "optimized_generator_kw": row["generator_kw"]} for row in dispatch], "dispatch": dispatch, "loads": load_shedding(available, current_load), "optimization_impact": impact, "alerts": alerts(dispatch, weather, scenario), "recommendation": recommendation(dispatch, scenario), "scenario": {"id": scenario, "name": SCENARIOS[scenario]}}
+    generators = [{"id": generator["id"], "name": generator["id"], "status": "FAILED" if scenario == "generator_failure" and generator["id"] == "GEN-01" else ("ON" if current_dispatch["generator_outputs"].get(generator["id"], 0) > 0 else "OFF"), "load_kw": current_dispatch["generator_outputs"].get(generator["id"], 0)} for generator in config["generators"]]
+    return {"station": {**config["station"], "status": "online"}, "environment": {"temperature_c": current_weather["temperature_c"], "wind_speed_ms": current_weather["wind_speed_ms"], "solar_irradiance_wm2": current_weather["solar_irradiance_wm2"], "weather_status": "Operational"}, "fuel": fuel_state(dispatch), "battery": {"soc_percent": current_dispatch["battery_soc_percent"], "charge_discharge_kw": current_dispatch["battery_discharge_kw"] - current_dispatch["battery_charge_kw"], "emergency_reserve_percent": config["battery"]["emergency_reserve_percent"]}, "energy": {"total_load_kw": current_dispatch["demand_kw"], "critical_load_kw": current_load["critical_load_kw"], "noncritical_load_kw": current_load["noncritical_load_kw"], "solar_generation_kw": current_dispatch["solar_kw"], "wind_generation_kw": current_dispatch["wind_kw"], "diesel_generation_kw": current_dispatch["generator_kw"], "total_renewable_kw": round(current_dispatch["solar_kw"] + current_dispatch["wind_kw"], 2)}, "forecast": [{"timestamp": row["timestamp"], "predicted_demand_kw": row["demand_kw"], "predicted_solar_kw": row["solar_kw"], "predicted_wind_kw": row["wind_kw"], "optimized_generator_kw": row["generator_kw"]} for row in dispatch], "dispatch": dispatch, "loads": load_shedding(available, current_load), "optimization_impact": impact, "alerts": alerts(dispatch, weather, scenario), "recommendation": recommendation(dispatch, scenario), "scenario": {"id": scenario, "name": SCENARIOS[scenario]}, "generators": generators}

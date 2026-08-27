@@ -10,7 +10,7 @@ class StationDashboardResponse(BaseModel):
     energy: dict[str, Any]
     forecast: list[dict[str, Any]]
     dispatch: list[dict[str, Any]]
-    loads: dict[str, Any]
+    loads: list[dict[str, Any]]
     optimization_impact: dict[str, Any]
     alerts: list[dict[str, Any]]
     recommendation: dict[str, Any]

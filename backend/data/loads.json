@@ -1,7 +1,0 @@
-[
-  {"id": "life_support", "name": "Life Support", "rated_kw": 55, "critical": true},
-  {"id": "medical", "name": "Medical", "rated_kw": 30, "critical": true},
-  {"id": "communication", "name": "Communication", "rated_kw": 25, "critical": true},
-  {"id": "aux_labs", "name": "Auxiliary Labs", "rated_kw": 38, "critical": false},
-  {"id": "nonessential_heating", "name": "Non-essential Heating", "rated_kw": 45, "critical": false}
-]
